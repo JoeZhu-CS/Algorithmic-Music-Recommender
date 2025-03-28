@@ -1,0 +1,4 @@
+track_name,track_artist,track_popularity,playlist_genre,danceability,energy,key,loudness,mode,speechiness,acousticness,instrumentalness,liveness,valence,tempo,duration_ms
+SOS,Avicii,30,pop,0.802,0.645,5,-6.181,0,0.0715,0.272,0,0.119,0.376,100.001,157202
+"Alone, Pt. II",Alan Walker,85,pop,0.67,0.668,3,-4.306,0,0.0422,0.536,0,0.133,0.608,88.033,179053
+Satellite,STARSET,54,rock,0.385,0.925,2,-5.888,0,0.132,0.0000773,0,0.153,0.323,76.957,239253
