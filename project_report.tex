@@ -1,0 +1,140 @@
+\documentclass[fontsize=11pt]{article}
+\usepackage{amsmath}
+\usepackage[utf8]{inputenc}
+\usepackage[margin=0.75in]{geometry}
+\usepackage{graphicx}
+
+\title{CSC111 Project Report: Algorithmic Music Recommender}
+\author{Mohamed Abdelfattah, Johnson Qin, Olivier D'Aragon Flores \& Hongyu Zhu}
+\date{Monday, March 31, 2025}
+
+\begin{document}
+\maketitle
+
+\section*{Problem Description and Research Question}
+
+We have chosen to create a program that suggests songs based on a user’s interests because when listening to music, we often find ourselves listening to the same songs over and over again, without leaving our comfort zone and exploring new songs. We want to develop a tool that will suggest songs similar to our interests to add variety in our playlist and ensure that new songs align with our preferences, all without having to take the time to find new songs ourselves. As such, we decided to make a recommendation algorithm to help us find similar music more efficiently, and spice up our playlists a little bit, all without wasting our time! \\
+\\ \textbf{Project Goal: Recommend songs to users by taking in songs they like and finding similar songs. The algorithm will compare the characteristics of the song from a Spotify song database to generate predictions. The experience should be customizable, allowing users to tweak recommendation parameters in order to obtain different results.}\\ 
+\\ The user should be aware of some different variables associated with each song (some examples below):
+\begin{itemize}
+    \item \texttt{Danceability}: “describes how suitable a track is for dancing based on a combination of musical elements including tempo, rhythm stability, beat strength, and overall regularity. A value of 0.0 is least danceable and 1.0 is most danceable.”
+    \item \texttt{Energy}: “a measure from 0.0 to 1.0 [that] represents a perceptual measure of intensity and activity.”
+    \item \texttt{Speechiness}: “detects the presence of spoken words in a track. The more [...] speech-like the recording [...], the closer to 1.0 the attribute value.” 
+\end{itemize}
+
+
+\section*{Datasets Used}
+\texttt{Name:} 30,000 Spotify Songs\\
+\texttt{Description:} This dataset is a \texttt{.csv} file containing around 30,000 songs scraped by a user on Kaggle. Each song has associated information: some of it is an intrinsic part of the song (such as the title of the song or the artist), whereas the rest is based Spotify's own calculations (such as valence or energy). By using these calculated characteristics, we can compare songs and figure out how similar they are to each other. All information is a string, which is why we manually convert them into their respective datatypes.\\
+The information in the CSV (not in order):
+\begin{enumerate}
+    \item \texttt{track\_id}: ID of the song.
+    \item \texttt{track\_name}: Name of the song.
+    \item \texttt{track\_artist}: Name of the artist.
+    \item \texttt{track\_album\_id}: ID of the album.
+    \item \texttt{track\_album\_name}: Name of the album.
+    \item \texttt{track\_album\_release\_date}: Date of album release.
+    \item \texttt{playlist\_name}: Name of the playlist.
+    \item \texttt{playlist\_genre}: Genre of the playlist this song was found in.
+    \item \texttt{playlist\_id}: ID of the playlist.
+    \item \texttt{danceability}: How danceable the song is. (Spotify)
+    \item \texttt{energy}: How energetic the song is. (Spotify)
+    \item \texttt{key}: The key of the song. (Spotify)
+    \item \texttt{loudness}: How loud the song is. (Spotify)
+    \item \texttt{mode}: Is the song in a major or minor key. (Spotify)
+    \item \texttt{speechiness}: How prevalent spoken word in the song is. Ex: is the song more electronic or singer-songwriter. (Spotify)
+    \item \texttt{acousticness}: How "acoustic" the song is. (Spotify)
+    \item \texttt{instrumentalness}: How instrumental the song is. (Spotify)
+    \item \texttt{liveness}: How confident we are that the song is a live performance. (Spotify)
+    \item \texttt{valence}: How happy/sad the song is. (Spotify)
+    \item \texttt{tempo}: The tempo of the song. (Spotify)
+    \item \texttt{duration\_ms}: How long the song is. (Spotify)
+\end{enumerate}\\
+\texttt{Format:} csv file\\
+\texttt{Source:} https://www.kaggle.com/datasets/joebeachcapital/30000-spotify-songs\\
+\texttt{Columns used:} track\_id, track\_name, track\_artist, track\_popularity, playlist\_genre, danceability, energy, key, loudness, mode, speechiness, acousticness, instrumentalness, liveness, valence, tempo, duration\_ms\\
+\texttt{Columns omitted:} track\_album\_id, track\_album\_name, track\_album\_release\_date, playlist\_name, playlist\_id, playlist\_subgenre 
+
+
+\section*{Computational Overview}
+
+The program takes an input song and personalized search parameters, performs calculations, and returns recommended similar songs.\\
+The calculations work by assigning different weights to each attribute of the input song. For example, a higher weight for energy means that our algorithm will consider energy more than other attributes when finding similar songs. The user has the option to either use default or customized weights.\\
+Personalized search parameters include:
+\begin{itemize}
+    \item What song attributes to prioritize
+    \item How many songs to input (ex: 1 song only)
+    \item How many songs to receive (ex: 5 similar songs)
+\end{itemize}
+Each song in our database is represented using a mapping (dictionary) from a string to a list. The string is the song's title, and each element of the list is an attribute of the song, such as the song's artist, its popularity, its tempo, etc.\\
+\\
+Our program works interactively by asking for user input and customization of search parameters. For any song, the program generates a graph of similar songs, linking those who more closely resemble each other, grouping similar ones together in order to show the relationship they have to each other. A shorter distance between two songs means that they are more similar. In addition, the user can see a bar graph showing which elements of their selected song are prioritized when calculating its similarity to the other songs in the dataset.\\
+
+The Numpy library allows us to manipulate \texttt{np.arrays}, which are considerably more computationally efficient than python lists. Numpy also has very fast built-in mathematical operations on these arrays, optimized in C/C++, perfect for large-scale data parsing, such as \texttt{diff()} or \texttt{cross()}. \\
+We originally said we would use Pandas to debug code, but we ended up not needing to use it. Also, rather than using matplotlib for the graph, we used plotly instead.\\
+Our program utilizes Python \textit{graphs} to connect a particular song with songs that are similar to it, according to our algorithm. When interacting with the program, the user is allowed to see the similarity graph of their selected song. This gives them the option of a visual representation of songs similar to their selected one. \\
+
+\\
+\textbf{Program Structure + Key Components}
+\\
+The user is prompted to enter a song and whether they want to customize how the songs are recommended. For example, they can restrict the recommended songs to be by the same artist, they can prioritize valence, and more. Afterwards, the program displays a list of recommended songs and gives the user the option to see a graph displaying the similarity of their selected song with the recommended ones, where a closer distance between two nodes indicates greater similarity.\\
+Furthermore, the user can see a feature analysis of their song, displaying the numerical values of the attributes of their song (valence, tempo, etc.) as well as a bar chart showing which song attributes were weighted most heavily when finding similar songs.\\
+Key program components include:
+\begin{itemize}
+    \item Use of networkx and plotly modules to create the graph
+    \item The algorithm to calculate song similarity using customizable weighted variables
+    \item Asking for user input to allow them to customize their recommendations
+    \item Function to convert the song data into a Python dictionary
+\end{itemize}
+
+
+\section*{Instructions for Obtaining Dataset and Running Program}
+The dataset can be downloaded in the attached zip file named \textbf{SpotifySongs\_no\_id.zip}. The user must ensure that the extracted dataset (in csv format) is in the same directory as \texttt{main.py}.\\
+The following Python libraries must be downloaded: \texttt{numpy, networkx, plotly}\\
+This is what the user should see when running \texttt{main.py}\\
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.5\linewidth]{visualization.py.png}
+    \caption{After running main.py}
+    \label{fig:enter-label}
+\end{figure}
+
+\section*{Changes To Project Plan}
+Instead of having the user input a playlist of songs, which was our initial idea, only one is asked. Furthermore, the graphs in our program are used as a visual representation of a song's similarity to other songs and cannot be manipulated. We scrapped the use of the \textbf{pandas} module, and instead of \textbf{matplotlib}, we used \textbf{plotly} for the graph. Lastly, instead of having multiple datasets varying in size as originally planned, we only used the full 30,000 song dataset in our program.\\
+\\
+We added a bar chart to display which attributes are taken into account the most when finding similar songs, something that was not in our original plan.\\
+We also added an option for multi-song comparison, which allows the user to see a graph of their song and another one, and how these graphs compare to each other (how similar they are). 
+\begin{figure}[h!]
+    \centering
+    \includegraphics[width=0.5\linewidth]{multisong_comparison.png}
+    \caption{In this case, the two songs selected by the user (in purple) are extremely similar because their nodes are connected}
+    \label{fig:enter-label}
+\end{figure}
+
+\section*{Discussion}
+The results of our computations helped us achieve our project goal, as we successfully developed an accurate algorithm to calculate similar songs. We can now enter a song of our choice and interactively select settings for the algorithm to quickly get recommendations. Furthermore, we can choose how many recommendations we would like to have, allowing the user to as many similar songs to their playlist as they like.\\
+\\
+Using weights to emphasize certain attributes is a simple and powerful way to calculate the similarity between different songs. Additionally, the combination of the Euclidean distance formula and the networkx and plotly Python modules create an effective visualization of how similar a song is to others, as the graph allows us to connect songs to similar ones, and the Euclidean distance formula allows us to directly correlate song similarity with distance on the graph (that is, the closer the song nodes, the more similar the songs are). Together, both of these produce an effective and straightforward visualization.\\
+\\
+One of the limitations of our dataset is that it contains duplicate song titles. For example, there are multiple songs in the dataset titled \textit{Say My Name}, and Ed Sheeran's famous \textit{Shape of You} has several remixes and duplicates in the dataset. Consequently, for our program, entering a certain song may result in a remix or a different song with the same title inadvertently being used for computation.\\
+Otherwise, the dataset is well suited for finding similar songs, given the fact that it contains numerous attributes of a song that listeners pay the most attention to. Specifically, valence, energy and danceability are some attributes included in the dataset that are highly relevant to completing our project goal.\\
+\\
+For future study, exploration and improvements, our algorithm could be improved through extensive data analysis of the songs. To fix the issue of remixes and duplicates, we could manually edit the dataset to remove these. We could also consider expanding our dataset, as it consists mostly of modern songs, leaving out some classic songs of the past like The Beatles' \textit{Yellow Submarine}. What's more, the dataset is limited to six main genres, including "EDM", "Rock" and "Pop" among others. As a result, when entering songs, the user is limited to entering mostly modern mainstream songs, a problem that also affects the songs returned by our program. By expanding our dataset to include more songs from previous eras (such as the Baby Boomer Generation and Generation X (1946-1980)) and more niche genres, older people, or more niche users could get more relevant and accurate recommendations.\\
+\\
+Should any of us come back to this project a few years down the line, with our increased knowledge and experience of computer science programming, we could look into developing an artificial intelligence (AI) model that would be able to use more abstract information, such as date/time period, or event sentiment analysis of the song title. Just like processing language, the processing of abstract information is difficult to hard-code. However, AI techniques such as tokenizing or even fully using an LLM to assist us, could help us access this additional information.\\
+\\
+To sum up, our program takes in a song, compares it to others by performing a customizeable similarity score calculation, and then returns the most similar songs visually with a graph. By taking in custom weights and filter preferences, we effectively offer a custom search experience that more advanced users benefit from. For less well-versed users, we also offer default parameters. However, the presence of duplicates and remixes in the dataset along with a bias towards modern songs can affect both accuracy and usability of our program. Future improvements include editing the dataset to remove unnecessary remixes and duplicates and expanding the dataset further to get a broader scope of music recommendations, as well as the possible use of AI for more precise recommendations.
+
+\section*{References}
+
+Arvidsson, Joakim. “30000 Spotify Songs.” Kaggle, 1 Nov. 2023, www.kaggle.com/datasets/joebeachcapital/30000-spotify-songs.
+\\ https://numpy.org/doc/stable/index.html
+\\ https://plotly.com/python/
+\\ https://networkx.org/
+\\ \textbf{Github}: https://github.com/JoeZhu-CS/Algorithmic-Music-Recommender/tree/main
+% NOTE: LaTeX does have a built-in way of generating references automatically,
+% but it's a bit tricky to use so we STRONGLY recommend writing your references
+% manually, using a standard academic format like APA or MLA.
+% (E.g., https://owl.purdue.edu/owl/research_and_citation/apa_style/apa_formatting_and_style_guide/general_format.html)
+
+\end{document}
