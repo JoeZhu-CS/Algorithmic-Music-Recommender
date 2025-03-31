@@ -58,40 +58,40 @@ class MusicRecommender:
 
         # === Same Artist ===
         answer = input("Restrict songs to those from the same artist? \nInput Yes or No \n> ").strip().lower()
-        while answer not in ["yes", "no"]:
+        while answer not in ["yes", "no", "y", "n"]:
             print("Invalid Answer. Please try again.")
             answer = input("Same artist? \nInput Yes or No \n> ").strip().lower()
-        same_artist = {"yes": True, "no": False}[answer]
+        same_artist = {"yes": True, "no": False, "y": True, "n": False}[answer]
 
         # === Same Genre ===
         answer = input(
             "Restrict songs to those from the same genre (estimated genre from playlist information)? \nInput Yes or No \n> ").strip().lower()
-        while answer not in ["yes", "no"]:
+        while answer not in ["yes", "no", "y", "n"]:
             print("Invalid Answer. Please try again.")
             answer = input("Same genre? \nInput Yes or No \n> ").strip().lower()
-        same_genre = {"yes": True, "no": False}[answer]
+        same_genre = {"yes": True, "no": False, "y": True, "n": False}[answer]
 
         # === Same Key ===
         answer = input("Restrict songs to those of the same key? \nInput Yes or No \n> ").strip().lower()
-        while answer not in ["yes", "no"]:
+        while answer not in ["yes", "no", "y", "n"]:
             print("Invalid Answer. Please try again.")
             answer = input("Same key? \nInput Yes or No \n> ").strip().lower()
-        same_key = {"yes": True, "no": False}[answer]
+        same_key = {"yes": True, "no": False, "y": True, "n": False}[answer]
 
         # === Same Mode ===
         answer = input("Restrict songs to those of the same mode (Major/Minor)? \nInput Yes or No \n> ").strip().lower()
-        while answer not in ["yes", "no"]:
+        while answer not in ["yes", "no", "y", "n"]:
             print("Invalid Answer. Please try again.")
             answer = input("Same mode? \nInput Yes or No \n> ").strip().lower()
-        same_mode = {"yes": True, "no": False}[answer]
+        same_mode = {"yes": True, "no": False, "y": True, "n": False}[answer]
 
         # === Restrict Tempo ===
         answer = input(
             f"Restrict songs based on tempo? For reference, your chosen song, \"{song_name}\", has a tempo of {song[1][11]} bpm. \nInput Yes or No \n> ").strip().lower()
-        while answer not in ["yes", "no"]:
+        while answer not in ["yes", "no", "y", "n"]:
             print("Invalid Answer. Please try again.")
             answer = input("Restrict tempo? \nInput Yes or No \n> ").strip().lower()
-        if {"yes": True, "no": False}[answer]:
+        if {"yes": True, "no": False, "y": True, "n": False}[answer]:
             answer = input("Input a lower bound for tempo (bpm). (integers only) \n> ").strip()
             while not answer.isdigit():
                 print("Invalid Answer. Please try again.")
@@ -110,10 +110,10 @@ class MusicRecommender:
         # === Restrict Duration ===
         answer = input(
             f"Restrict songs based on song duration? For reference, your chosen song, \"{song_name}\", has a duration of {int(song[1][12] / 1000)} seconds, or around {round(song[1][12] / 1000 / 60, 3)} minutes. \nInput Yes or No \n> ").strip().lower()
-        while answer not in ["yes", "no"]:
+        while answer not in ["yes", "no", "y", "n"]:
             print("Invalid Answer. Please try again.")
             answer = input("Restrict duration? \nInput Yes or No \n> ").strip().lower()
-        if {"yes": True, "no": False}[answer]:
+        if {"yes": True, "no": False, "y": True, "n": False}[answer]:
             answer = input("Input a lower bound for duration (seconds). (integers only) \n> ").strip()
             while not answer.isdigit():
                 print("Invalid Answer. Please try again.")
@@ -152,9 +152,9 @@ class MusicRecommender:
         if song_name.lower() not in self.song_dict:
             raise ValueError(f"Song '{song_name}' not found in the dataset")
 
-        # Default weights if none provided
+        # Default weights if none provided - prioritize valence
         if weights is None:
-            weights = [0.05, 0.15, 0.15, 0.05, 0.05, 0.05, 0.05, 0.1, 0.1, 0.05, 0.1, 0.05, 0.05]
+            weights = [0.05, 0.12, 0.12, 0.05, 0.05, 0.05, 0.05, 0.08, 0.08, 0.05, 0.15, 0.10, 0.05]
 
         # Store original song data in variables for faster access
         original_song = self.song_dict[song_name.lower()]
@@ -208,9 +208,9 @@ class MusicRecommender:
                 elif i == 4:
                     normalized_diff = abs((feat1 + 60) / 60 - (feat2 + 60) / 60)
                     distance += weights[i] * normalized_diff ** 2
-                # Normalize tempo (0-250)
+                # Don't normalize tempo - use direct difference
                 elif i == 11:
-                    normalized_diff = abs(feat1 - feat2) / 250
+                    normalized_diff = abs(feat1 - feat2) / float('inf')  # Set to infinity to minimize impact
                     distance += weights[i] * normalized_diff ** 2
                 # Normalize duration
                 elif i == 12:
@@ -256,44 +256,8 @@ class MusicRecommender:
             preferences = self.get_setting_preferences(song_name)
             return self.generate_similarity_list(song_name, n, preferences)
 
-        # Otherwise, use the original method
-        similarities = self._calculate_similarity(song_name)
-        sorted_songs = sorted(similarities.items(), key=lambda x: x[1], reverse=True)
-        return [song for song, _ in sorted_songs[:n]]
-
-    def _calculate_similarity(self, song_name: str) -> Dict[str, float]:
-        """Calculate similarity between the given song and all other songs.
-
-        Args:
-            song_name: Name of the reference song
-
-        Returns:
-            Dictionary mapping song names to similarity scores
-        """
-        reference_song = self.song_dict[song_name.lower()]
-        ref_features = reference_song[1]  # Numerical features
-
-        similarities = {}
-        for other_song, other_data in self.song_dict.items():
-            if other_song == song_name.lower():
-                continue
-
-            other_features = other_data[1]
-
-            # Calculate weighted Euclidean distance for key features
-            distance = (
-                               0.3 * (ref_features[1] - other_features[1]) ** 2 +  # danceability
-                               0.3 * (ref_features[2] - other_features[2]) ** 2 +  # energy
-                               0.1 * (ref_features[7] - other_features[7]) ** 2 +  # acousticness
-                               0.1 * (ref_features[8] - other_features[8]) ** 2 +  # instrumentalness
-                               0.2 * (ref_features[10] - other_features[10]) ** 2  # valence
-                       ) ** 0.5
-
-            # Convert distance to similarity (closer = more similar)
-            similarity = 1 / (1 + distance)
-            similarities[other_song] = similarity
-
-        return similarities
+        # Otherwise, use default weights without filtering
+        return self.generate_similarity_list(song_name, n)
 
     def visualize_similar_songs(self, song_names: List[str],
                                 max_similar: int = 5,
@@ -322,30 +286,35 @@ class MusicRecommender:
         if not valid_songs:
             raise ValueError("No valid songs provided")
 
-        # Calculate similarities for each input song
-        similarity_scores = {}
+        # Use preferences for similarity calculation
+        all_similar_songs = {}
+        preferences_to_use = None
 
         for song in valid_songs:
             if use_preferences:
                 # Use existing preferences if provided, otherwise collect new ones
                 if existing_preferences:
-                    preferences = existing_preferences
+                    preferences_to_use = existing_preferences
                     print(f"Using your previous preferences for '{song}' recommendations.")
                 else:
                     print(f"Let's collect your preferences for '{song}' recommendations.")
-                    preferences = self.get_setting_preferences(song)
+                    preferences_to_use = self.get_setting_preferences(song)
 
-                # Use generate_similarity_list, but we need to convert the result to a dictionary with scores
-                top_songs = self.generate_similarity_list(song, max_similar * 3, preferences)  # Get more than needed
+            # Get similar songs using generate_similarity_list with or without preferences
+            similar_songs = self.generate_similarity_list(song, max_similar * 3, preferences_to_use)
 
-                # Recalculate similarities just for these songs for visualization
-                temp_similarities = self._calculate_similarity(song)
-                similarity_scores[song.lower()] = {s: temp_similarities[s] for s in top_songs if s in temp_similarities}
-            else:
-                similarity_scores[song.lower()] = self._calculate_similarity(song)
+            # Calculate similarity scores for visualization purposes
+            similarity_scores = {}
+            for similar_song in similar_songs:
+                # For simplicity, we'll use inverse of position as similarity score
+                # Higher position = lower similarity
+                pos = similar_songs.index(similar_song)
+                similarity_scores[similar_song] = 1 - (pos / (len(similar_songs) + 1))
+
+            all_similar_songs[song.lower()] = similarity_scores
 
         # Create and visualize the graph
-        graph = self._create_song_graph(valid_songs, similarity_scores,
+        graph = self._create_song_graph(valid_songs, all_similar_songs,
                                         threshold, max_similar)
         self._visualize_song_graph(graph, output_file=output_file)
 
@@ -671,7 +640,19 @@ if __name__ == "__main__":
             print("1. Basic mode: Uses default settings to find similar songs")
             print("2. Advanced mode: Lets you set specific preferences (artist, genre, tempo, etc.)")
 
-            use_preferences = input("Which mode would you prefer? (basic/advanced): ").lower().startswith('a')
+            while True:
+                use_preferences = input("Which mode would you prefer? (basic/advanced): ").strip().lower()
+
+                if use_preferences.startswith('a'):
+                    use_preferences = True  # Advanced Mode
+                    break
+
+                elif use_preferences.startswith('b'):
+                    use_preferences = False  # Basic Mode
+                    break
+
+                else:
+                    print("Invalid choice. Please enter 'basic' or 'advanced'.")
 
             # Store preferences if the user wants to use them
             preferences = None
