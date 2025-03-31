@@ -555,7 +555,6 @@ if __name__ == "__main__":
     print("This system helps you find music similar to songs you already enjoy.")
     print("You can use basic recommendations or customize your preferences.")
 
-
     # Function to find a song with flexible matching
     def find_song(search_term):
         # Normalize search term (lowercase and strip spaces)
