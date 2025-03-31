@@ -1,7 +1,6 @@
 import networkx as nx
 from plotly.graph_objs import Scatterpolar, Scatter, Figure, Bar
-import numpy as np
-from typing import Dict, List, Tuple, Optional
+from typing import Dict, List, Optional
 import os
 
 # Import data loading function
@@ -159,6 +158,14 @@ class MusicRecommender:
         # Store original song data in variables for faster access
         original_song = self.song_dict[song_name.lower()]
         original_song_data = original_song[1]
+
+        # Set defaults to avoid uninitialized variables
+        same_artist = same_genre = same_key = same_mode = False
+        lower_bound_tempo = lower_bound_duration = float('-inf')
+        upper_bound_tempo = upper_bound_duration = float('inf')
+
+        og_artist = og_genre = None
+        og_key = og_mode = None
 
         if preferences:
             # Unpack user preferences
@@ -510,7 +517,7 @@ class MusicRecommender:
             Bar(
                 x=feature_names,
                 y=feature_weights,
-                marker_color='rgb(55, 83, 109)'
+                marker=dict(color='rgb(55, 83, 109)')
             )
         ])
 
