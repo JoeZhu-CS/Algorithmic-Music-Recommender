@@ -4,7 +4,7 @@ import numpy as np
 from typing import Dict, List, Tuple, Optional
 import os
 
-# Import your data loading function
+# Import data loading function
 from get_dict_from_data import get_dict_from_data
 
 # Colours to use when visualizing different clusters of songs
@@ -32,12 +32,212 @@ class MusicRecommender:
         """
         self.song_dict = get_dict_from_data(song_data_path)
 
-    def find_similar_songs(self, song_name: str, n: int = 10) -> List[str]:
+    def get_setting_preferences(self, song_name: str) -> tuple[bool, bool, bool, bool, float, float, float, float]:
+        """
+        Returns the user's preferred settings for the search. Takes in a song name.
+
+        Args:
+            song_name: Name of the reference song
+
+        Returns:
+            Tuple containing:
+            - same_artist: Whether to restrict to same artist
+            - same_genre: Whether to restrict to same genre
+            - same_key: Whether to restrict to same key
+            - same_mode: Whether to restrict to same mode
+            - lower_bound_tempo: Minimum tempo
+            - upper_bound_tempo: Maximum tempo
+            - lower_bound_duration: Minimum duration
+            - upper_bound_duration: Maximum duration
+        """
+        # Get the song data
+        if song_name.lower() not in self.song_dict:
+            raise ValueError(f"Song '{song_name}' not found in the dataset")
+
+        song = self.song_dict[song_name.lower()]
+
+        # === Same Artist ===
+        answer = input("Restrict songs to those from the same artist? \nInput Yes or No \n> ").strip().lower()
+        while answer not in ["yes", "no"]:
+            print("Invalid Answer. Please try again.")
+            answer = input("Same artist? \nInput Yes or No \n> ").strip().lower()
+        same_artist = {"yes": True, "no": False}[answer]
+
+        # === Same Genre ===
+        answer = input(
+            "Restrict songs to those from the same genre (estimated genre from playlist information)? \nInput Yes or No \n> ").strip().lower()
+        while answer not in ["yes", "no"]:
+            print("Invalid Answer. Please try again.")
+            answer = input("Same genre? \nInput Yes or No \n> ").strip().lower()
+        same_genre = {"yes": True, "no": False}[answer]
+
+        # === Same Key ===
+        answer = input("Restrict songs to those of the same key? \nInput Yes or No \n> ").strip().lower()
+        while answer not in ["yes", "no"]:
+            print("Invalid Answer. Please try again.")
+            answer = input("Same key? \nInput Yes or No \n> ").strip().lower()
+        same_key = {"yes": True, "no": False}[answer]
+
+        # === Same Mode ===
+        answer = input("Restrict songs to those of the same mode (Major/Minor)? \nInput Yes or No \n> ").strip().lower()
+        while answer not in ["yes", "no"]:
+            print("Invalid Answer. Please try again.")
+            answer = input("Same mode? \nInput Yes or No \n> ").strip().lower()
+        same_mode = {"yes": True, "no": False}[answer]
+
+        # === Restrict Tempo ===
+        answer = input(
+            f"Restrict songs based on tempo? For reference, your chosen song, \"{song_name}\", has a tempo of {song[1][11]} bpm. \nInput Yes or No \n> ").strip().lower()
+        while answer not in ["yes", "no"]:
+            print("Invalid Answer. Please try again.")
+            answer = input("Restrict tempo? \nInput Yes or No \n> ").strip().lower()
+        if {"yes": True, "no": False}[answer]:
+            answer = input("Input a lower bound for tempo (bpm). (integers only) \n> ").strip()
+            while not answer.isdigit():
+                print("Invalid Answer. Please try again.")
+                answer = input("Input a lower bound for tempo (bpm). \n> ").strip()
+            lower_bound_tempo = float(answer)
+
+            answer = input("Input an upper bound for tempo (bpm). (integers only) \n> ").strip()
+            while not answer.isdigit():
+                print("Invalid Answer. Please try again.")
+                answer = input("Input an upper bound for tempo (bpm). \n> ").strip()
+            upper_bound_tempo = float(answer)
+        else:
+            lower_bound_tempo = 0
+            upper_bound_tempo = float('inf')
+
+        # === Restrict Duration ===
+        answer = input(
+            f"Restrict songs based on song duration? For reference, your chosen song, \"{song_name}\", has a duration of {int(song[1][12] / 1000)} seconds, or around {round(song[1][12] / 1000 / 60, 3)} minutes. \nInput Yes or No \n> ").strip().lower()
+        while answer not in ["yes", "no"]:
+            print("Invalid Answer. Please try again.")
+            answer = input("Restrict duration? \nInput Yes or No \n> ").strip().lower()
+        if {"yes": True, "no": False}[answer]:
+            answer = input("Input a lower bound for duration (seconds). (integers only) \n> ").strip()
+            while not answer.isdigit():
+                print("Invalid Answer. Please try again.")
+                answer = input("Input a lower bound for duration (seconds). \n> ").strip()
+            lower_bound_duration = float(answer) * 1000
+
+            answer = input("Input an upper bound for duration (seconds). (integers only) \n> ").strip()
+            while not answer.isdigit():
+                print("Invalid Answer. Please try again.")
+                answer = input("Input an upper bound for duration (seconds). \n> ").strip()
+            upper_bound_duration = float(answer) * 1000
+        else:
+            lower_bound_duration = 0
+            upper_bound_duration = float('inf')
+
+        return same_artist, same_genre, same_key, same_mode, lower_bound_tempo, upper_bound_tempo, lower_bound_duration, upper_bound_duration
+
+    def generate_similarity_list(self, song_name: str, n: int = 10,
+                                 preferences: Optional[
+                                     tuple[bool, bool, bool, bool, float, float, float, float]] = None,
+                                 weights: Optional[List[float]] = None) -> List[str]:
+        """
+        Generate a list of similar songs based on user preferences and feature weights.
+
+        Args:
+            song_name: Name of the reference song
+            n: Number of similar songs to return
+            preferences: Tuple of filtering preferences (same_artist, same_genre, same_key, etc.)
+            weights: List of weights for different features in similarity calculation
+                    [popularity, danceability, energy, key, loudness, mode, speechiness,
+                     acousticness, instrumentalness, liveness, valence, tempo, duration]
+
+        Returns:
+            List of similar song names
+        """
+        if song_name.lower() not in self.song_dict:
+            raise ValueError(f"Song '{song_name}' not found in the dataset")
+
+        # Default weights if none provided
+        if weights is None:
+            weights = [0.05, 0.15, 0.15, 0.05, 0.05, 0.05, 0.05, 0.1, 0.1, 0.05, 0.1, 0.05, 0.05]
+
+        # Store original song data in variables for faster access
+        original_song = self.song_dict[song_name.lower()]
+        original_song_data = original_song[1]
+
+        if preferences:
+            # Unpack user preferences
+            same_artist, same_genre, same_key, same_mode, lower_bound_tempo, upper_bound_tempo, lower_bound_duration, upper_bound_duration = preferences
+
+            # Get reference values for filtering
+            og_artist = original_song[0][0]
+            og_genre = original_song[0][1]
+            og_key = original_song_data[3]
+            og_mode = original_song_data[5]
+
+        # Dictionary to store song similarities
+        similarities = {}
+
+        # Calculate similarity for each song
+        for other_song_name, other_song in self.song_dict.items():
+            # Skip the reference song itself
+            if other_song_name == song_name.lower():
+                continue
+
+            # Apply filters if preferences are provided
+            if preferences:
+                # Skip songs that don't match the filter criteria
+                if (
+                        (same_artist and og_artist != other_song[0][0]) or
+                        (same_genre and og_genre != other_song[0][1]) or
+                        (same_key and og_key != other_song[1][3]) or
+                        (same_mode and og_mode != other_song[1][5]) or
+                        (other_song[1][11] < lower_bound_tempo) or
+                        (other_song[1][11] > upper_bound_tempo) or
+                        (other_song[1][12] < lower_bound_duration) or
+                        (other_song[1][12] > upper_bound_duration)
+                ):
+                    continue
+
+            # Calculate weighted Euclidean distance for all numerical features
+            distance = 0
+            other_features = other_song[1]
+
+            # Sum up the weighted squared differences for each feature
+            for i, (feat1, feat2) in enumerate(zip(original_song_data, other_features)):
+                # Normalize key (0-11)
+                if i == 3:
+                    normalized_diff = abs(feat1 - feat2) / 11
+                    distance += weights[i] * normalized_diff ** 2
+                # Normalize loudness (typically -60 to 0)
+                elif i == 4:
+                    normalized_diff = abs((feat1 + 60) / 60 - (feat2 + 60) / 60)
+                    distance += weights[i] * normalized_diff ** 2
+                # Normalize tempo (0-250)
+                elif i == 11:
+                    normalized_diff = abs(feat1 - feat2) / 250
+                    distance += weights[i] * normalized_diff ** 2
+                # Normalize duration
+                elif i == 12:
+                    normalized_diff = abs(feat1 - feat2) / (5 * 60 * 1000)  # Normalize to 5 minutes
+                    distance += weights[i] * normalized_diff ** 2
+                # Other features are already in 0-1 range
+                else:
+                    distance += weights[i] * (feat1 - feat2) ** 2
+
+            # Convert distance to similarity (closer = more similar)
+            similarity = 1 / (1 + distance ** 0.5)
+            similarities[other_song_name] = similarity
+
+        # Sort by similarity score (highest first)
+        sorted_songs = sorted(similarities.items(), key=lambda x: x[1], reverse=True)
+
+        # Return top N song names
+        return [song for song, _ in sorted_songs[:n]]
+
+    def find_similar_songs(self, song_name: str, n: int = 10,
+                           use_preferences: bool = False) -> List[str]:
         """Find songs similar to the given song.
 
         Args:
             song_name: Name of the reference song
             n: Number of similar songs to return
+            use_preferences: Whether to use user preferences for filtering
 
         Returns:
             List of similar song names
@@ -50,13 +250,15 @@ class MusicRecommender:
         if song_name.lower() not in self.song_dict:
             raise ValueError(f"Song '{song_name}' not found in the dataset")
 
-        # Calculate similarities
+        # Use preferences-based method if requested
+        if use_preferences:
+            print("Let's collect your preferences for song recommendations.")
+            preferences = self.get_setting_preferences(song_name)
+            return self.generate_similarity_list(song_name, n, preferences)
+
+        # Otherwise, use the original method
         similarities = self._calculate_similarity(song_name)
-
-        # Sort by similarity score (highest first)
         sorted_songs = sorted(similarities.items(), key=lambda x: x[1], reverse=True)
-
-        # Return top N song names
         return [song for song, _ in sorted_songs[:n]]
 
     def _calculate_similarity(self, song_name: str) -> Dict[str, float]:
@@ -96,7 +298,9 @@ class MusicRecommender:
     def visualize_similar_songs(self, song_names: List[str],
                                 max_similar: int = 5,
                                 threshold: float = 0.7,
-                                output_file: str = '') -> None:
+                                output_file: str = '',
+                                use_preferences: bool = False,
+                                existing_preferences: Optional[tuple] = None) -> None:
         """Visualize a network of songs similar to the input songs.
 
         Args:
@@ -104,6 +308,8 @@ class MusicRecommender:
             max_similar: Maximum number of similar songs to show per input song
             threshold: Minimum similarity score to include a song
             output_file: Path to save the visualization (empty to display in browser)
+            use_preferences: Whether to use user preferences for filtering
+            existing_preferences: Previously collected preferences to reuse
         """
         # Validate song names
         valid_songs = []
@@ -118,8 +324,25 @@ class MusicRecommender:
 
         # Calculate similarities for each input song
         similarity_scores = {}
+
         for song in valid_songs:
-            similarity_scores[song.lower()] = self._calculate_similarity(song)
+            if use_preferences:
+                # Use existing preferences if provided, otherwise collect new ones
+                if existing_preferences:
+                    preferences = existing_preferences
+                    print(f"Using your previous preferences for '{song}' recommendations.")
+                else:
+                    print(f"Let's collect your preferences for '{song}' recommendations.")
+                    preferences = self.get_setting_preferences(song)
+
+                # Use generate_similarity_list, but we need to convert the result to a dictionary with scores
+                top_songs = self.generate_similarity_list(song, max_similar * 3, preferences)  # Get more than needed
+
+                # Recalculate similarities just for these songs for visualization
+                temp_similarities = self._calculate_similarity(song)
+                similarity_scores[song.lower()] = {s: temp_similarities[s] for s in top_songs if s in temp_similarities}
+            else:
+                similarity_scores[song.lower()] = self._calculate_similarity(song)
 
         # Create and visualize the graph
         graph = self._create_song_graph(valid_songs, similarity_scores,
@@ -358,44 +581,205 @@ if __name__ == "__main__":
     # Create a recommender
     recommender = MusicRecommender(data_file)
 
-    # Example: Find similar songs to "Shape of You"
-    song_title = "Shape of You"
-    try:
-        similar_songs = recommender.find_similar_songs(song_title, 10)
+    # Display welcome message
+    print("\n===== Music Recommendation System =====")
+    print("This system helps you find music similar to songs you already enjoy.")
+    print("You can use basic recommendations or customize your preferences.")
 
-        print(f"Songs similar to '{song_title}':")
-        import pprint
+    # Function to find a song with flexible matching
+    def find_song(search_term):
+        # Normalize search term (lowercase and strip spaces)
+        normalized_search = search_term.lower().strip()
 
-        pprint.pprint(similar_songs)
+        # Direct match
+        if normalized_search in recommender.song_dict:
+            return normalized_search
 
-        # Visualize the similar songs
-        recommender.visualize_similar_songs([song_title])
+        # Try matching with extra spaces removed
+        compressed_search = ''.join(normalized_search.split())
+        for song_name in recommender.song_dict.keys():
+            compressed_song = ''.join(song_name.split())
+            if compressed_search == compressed_song:
+                return song_name
 
-        # Visualize the features of the song
-        recommender.visualize_song_features(song_title)
+        # If still not found, check for partial matches
+        potential_matches = []
+        for song_name in recommender.song_dict.keys():
+            if normalized_search in song_name:
+                potential_matches.append(song_name)
 
-        # Example feature weights for visualization
-        weights = {
-            'genre': 0.15,
-            'artist': 0.05,
-            'popularity': 0.05,
-            'danceability': 0.10,
-            'energy': 0.10,
-            'key': 0.02,
-            'loudness': 0.05,
-            'mode': 0.02,
-            'speechiness': 0.08,
-            'acousticness': 0.08,
-            'instrumentalness': 0.08,
-            'liveness': 0.05,
-            'valence': 0.10,
-            'tempo': 0.05,
-            'duration_ms': 0.02
-        }
+        if potential_matches:
+            # If we have multiple matches, let the user choose
+            if len(potential_matches) > 1:
+                print("\nMultiple songs found. Please select one:")
+                for i, match in enumerate(potential_matches[:10], 1):  # Show up to 10 matches
+                    artist = recommender.song_dict[match][0][0]
+                    print(f"{i}. {match.title()} - {artist}")
 
-        print("Showing feature weights visualization")
-        recommender.visualize_feature_weights(weights)
+                while True:
+                    try:
+                        selection = int(input("\nEnter the number of your choice (or 0 to search again): "))
+                        if selection == 0:
+                            return None
+                        if 1 <= selection <= len(potential_matches[:10]):
+                            return potential_matches[selection - 1]
+                        print("Invalid selection. Please try again.")
+                    except ValueError:
+                        print("Please enter a number.")
+            else:
+                # If we have just one partial match
+                return potential_matches[0]
 
-    except ValueError as e:
-        print(f"Error: {e}")
-        print("Try another song like 'Despacito' or 'Closer'")
+        # No matches found
+        return None
+
+
+    # Main program loop
+    while True:
+        # Ask user for a song
+        print("\nEnter a song name to get recommendations.")
+        print("Some popular suggestions: 'Shape of You', 'Despacito', 'Closer', 'Stay'")
+        song_input = input("Song title (or 'exit' to quit): ")
+
+        if song_input.lower() == 'exit':
+            print("\nThank you for using the Music Recommendation System!")
+            break
+
+        song_name = find_song(song_input)
+
+        if not song_name:
+            print(f"Sorry, '{song_input}' not found in the dataset.")
+            print("Try another song like 'Shape of You' or 'Despacito'")
+            continue
+
+        song_title = song_name  # For consistency with the rest of the code
+        song_data = recommender.song_dict[song_name]
+        artist = song_data[0][0]
+        print(f"\nFound: '{song_name.title()}' by {artist}")
+
+        try:
+            # Display song features
+            print("\n--- Song Feature Analysis ---")
+            print("Would you like to see the audio features of this song?")
+            if input("Show audio features? (yes/no): ").lower().startswith('y'):
+                recommender.visualize_song_features(song_title)
+                print("Audio feature visualization displayed.")
+
+            # Ask for preference mode once, upfront
+            print("\n--- Recommendation Mode ---")
+            print("You can get recommendations in two ways:")
+            print("1. Basic mode: Uses default settings to find similar songs")
+            print("2. Advanced mode: Lets you set specific preferences (artist, genre, tempo, etc.)")
+
+            use_preferences = input("Which mode would you prefer? (basic/advanced): ").lower().startswith('a')
+
+            # Store preferences if the user wants to use them
+            preferences = None
+            if use_preferences:
+                print("\n--- Setting Your Preferences ---")
+                preferences = recommender.get_setting_preferences(song_title)
+
+            # Get recommendations based on chosen mode
+            if use_preferences:
+                print("\n--- Advanced Preference-Based Recommendations ---")
+                similar_songs = recommender.generate_similarity_list(song_title, 10, preferences)
+            else:
+                print("\n--- Basic Recommendations ---")
+                print("Finding similar songs using default parameters...")
+                similar_songs = recommender.find_similar_songs(song_title, 5)
+
+            # Display recommendations
+            print(f"\nTop {len(similar_songs)} recommendations for '{song_title.title()}':")
+            for i, song in enumerate(similar_songs, 1):
+                similar_artist = recommender.song_dict[song][0][0]
+                similar_genre = recommender.song_dict[song][0][1]
+                print(f"{i}. {song.title()} - {similar_artist} (Genre: {similar_genre})")
+
+            # Network visualization - reuse the same preference mode
+            print("\n--- Song Network Visualization ---")
+            print("You can visualize the network of similar songs.")
+            if input("Would you like to see a network visualization? (yes/no): ").lower().startswith('y'):
+                print("Creating song similarity network using your previous settings...")
+                # Use the same preference mode that was chosen earlier
+                recommender.visualize_similar_songs([song_title], max_similar=8, threshold=0.6,
+                                                    use_preferences=False if preferences is None else True,
+                                                    existing_preferences=preferences)
+                print("Network visualization displayed.")
+
+            # Multi-song comparison
+            print("\n--- Multi-Song Comparison ---")
+            print("You can also compare multiple songs at once.")
+            if input("Would you like to add another song for comparison? (yes/no): ").lower().startswith('y'):
+                second_song_input = input("Enter another song name: ")
+                second_song = find_song(second_song_input)
+
+                if second_song:
+                    print(f"Creating network visualization for '{song_title.title()}' and '{second_song.title()}'...")
+                    # For multi-song, we should also have the option to reuse preferences
+                    multi_use_prefs = input("Use your preferences for this comparison? (yes/no): ").lower().startswith(
+                        'y')
+                    recommender.visualize_similar_songs([song_title, second_song], max_similar=5,
+                                                        use_preferences=multi_use_prefs,
+                                                        existing_preferences=preferences if multi_use_prefs else None)
+                    print("Multi-song network visualization displayed.")
+                else:
+                    print(f"Sorry, '{second_song_input}' not found in the dataset.")
+
+            # Custom weights demonstration
+            print("\n--- Feature Weights Customization ---")
+            print("The recommendation system uses weights for different audio features.")
+            if input("Would you like to see the default feature weights? (yes/no): ").lower().startswith('y'):
+                # Example feature weights for visualization
+                weights = {
+                    'genre': 0.15,
+                    'artist': 0.05,
+                    'popularity': 0.05,
+                    'danceability': 0.10,
+                    'energy': 0.10,
+                    'key': 0.02,
+                    'loudness': 0.05,
+                    'mode': 0.02,
+                    'speechiness': 0.08,
+                    'acousticness': 0.08,
+                    'instrumentalness': 0.08,
+                    'liveness': 0.05,
+                    'valence': 0.10,
+                    'tempo': 0.05,
+                    'duration_ms': 0.02
+                }
+
+                print("Showing feature weights visualization...")
+                recommender.visualize_feature_weights(weights)
+                print("Feature weights visualization displayed.")
+
+                # Demonstrate custom weights
+                if input("Would you like to try custom feature weights? (yes/no): ").lower().startswith('y'):
+                    print("\nCustomizing weights lets you prioritize specific audio features.")
+                    print("For example, we can prioritize danceability and energy for party music.")
+                    custom_weights = [0.03, 0.25, 0.25, 0.03, 0.03, 0.03, 0.03, 0.05, 0.05, 0.03, 0.15, 0.05, 0.02]
+
+                    # Reuse existing preferences or get new ones if needed
+                    if preferences is None:
+                        print("\nLet's set filtering preferences first:")
+                        preferences = recommender.get_setting_preferences(song_title)
+                    else:
+                        print("Using your previously set preferences with custom weights...")
+
+                    # Use custom weights with preferences
+                    custom_songs = recommender.generate_similarity_list(
+                        song_title, 10, preferences, custom_weights
+                    )
+
+                    print(f"\nTop 10 dance-oriented recommendations for '{song_title.title()}':")
+                    for i, song in enumerate(custom_songs, 1):
+                        similar_artist = recommender.song_dict[song][0][0]
+                        print(f"{i}. {song.title()} - {similar_artist}")
+
+            print("\nWould you like to try another song?")
+            if not input("Continue? (yes/no): ").lower().startswith('y'):
+                print("\nThank you for using the Music Recommendation System!")
+                break
+
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            print("Let's try something else.")
